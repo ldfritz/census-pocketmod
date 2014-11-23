@@ -1,0 +1,138 @@
+%!
+
+/src_filename (%os%names.txt) def
+/src_file src_filename (r) file def
+/dump_len 100 def
+/dump_str dump_len string def
+/entries 210 array def
+/cur_index 0 def
+
+{
+  src_file dump_str readline
+  /ifsuccess exch def
+  /read_line exch def
+  ifsuccess
+  {
+    entries cur_index read_line put
+    /cur_index cur_index 1 add def
+    /dump_str dump_len string def
+  }
+  {
+    exit
+  } ifelse
+} loop
+
+/cur_index cur_index 1 sub def
+src_file closefile
+
+%% Get and save the index number of the last entry.
+/last_entry cur_index def
+
+%% Set how many entries to put on each of the pages.
+%% Because of rounding the last page may have fewer entries.
+/pages 7 def
+/entries_per_box last_entry pages div ceiling def
+
+%% Convert inches to pixels.
+%%
+%% Takes a number of inches.
+%%
+%% Returns the approximate number of pixels.
+/inch {72 mul} def
+
+%% Set what I expect the width of the page to be.
+/page_width currentpagedevice /PageSize get 0 get def
+
+%% Set what I expect the height of the page to be.
+/page_height currentpagedevice /PageSize get 1 get def
+
+%% Set the outside margins.
+/margin 0.25 inch def
+
+%% Figure out the width of the pages within the margins.
+/mod_box_width page_height 4 div margin 5 mul sub def
+/mod_box_height page_width 2 div margin 3 mul sub def
+
+%% Set font the font size based on the number of entries per page.
+/fontsize mod_box_height entries_per_box div def
+
+%% Adjust the spacing on each of the pages.
+/spacing fontsize 1 mul def
+
+%% Return the distance from the top of the page for a line.
+%%
+%% Takes the line number.
+%%
+%% Returns the pixel adjustment.
+/downto {spacing mul neg} def
+
+%% Return the modbox to which this entry belongs.
+%%
+%% Takes the entry's index number.
+%%
+%% Returns the number of the modbox (1-8).
+/mod_box_number {entries_per_box div floor 1 add} def
+
+%% Return the line number for the given entry.
+%%
+%% Takes the entry's index number.
+%%
+%% Returns the line number for the entry.
+/mod_box_line {cvi entries_per_box cvi mod 1 add} def
+
+/Courier findfont
+fontsize scalefont
+setfont
+
+/mod_box_rotation {
+  5 lt {-90} {90} ifelse
+} def
+
+%% Get the coordinates for the given box.
+%%
+%% Takes a box number 1-8.
+%%
+%% Returns the x and y pixels for the box.
+/mod_box_origin {
+  /box_num exch def
+  box_num 5 lt {
+    page_width 2 div margin sub
+    page_height 4 div 5 box_num sub mul margin sub
+  } {
+    page_width 2 div margin add
+    page_height 4 div box_num 5 sub mul margin add
+  } ifelse
+} def
+
+%% Put the entry on the page.
+%%
+%% Takes the entries index number and its contents.
+%%
+%% Returns nothing.
+/display {
+  /entry_string exch def
+  /entry_index exch def
+
+  /current_box entry_index mod_box_number def
+  /current_line entry_index mod_box_line def
+
+  entry_string type /nulltype ne
+  {
+    gsave
+      current_box mod_box_origin moveto
+      current_box mod_box_rotation rotate
+      0 current_line downto rmoveto
+      (_ _ _ ) show
+      entry_string 50 string cvs show
+    grestore
+  } if
+} def
+
+%% Send each index and its string to be displayed.
+0 1 last_entry {
+  1 copy
+  entries exch get
+  display
+} for
+
+showpage
