@@ -1,5 +1,129 @@
 %!
+%%%%%%%%%%%%%%%%%
+%%% TESTING   %%%
+%%%%%%%%%%%%%%%%%
+/x         {currentpoint      pop} def
+/y         {currentpoint exch pop} def
+/moveup    {0 exch       rmoveto}  def
+/movedown  {0 exch   neg rmoveto}  def
+/moveleft  {  neg  0     rmoveto}  def
+/moveright {       0     rmoveto}  def
+/movexto   {       y     moveto}   def
+/moveyto   {x exch       moveto}   def
 
+/append_str {
+  /str_2 exch def
+  /str_1 exch def
+  /str_3 str_1 length str_2 length add string def
+  str_1 str_3 copy pop
+  str_3 str_1 length str_2 putinterval
+  str_3
+} def
+
+/to_str {
+  100 string cvs
+} def
+
+% Create the assertions array unless it exists.
+%
+% - -- -
+%
+% Side Effects:
+%   Creates an assertion array.
+%   Creates an assertion counter.
+%   Creates a failure counter.
+/setup_tests {
+  /assertions_arr where {
+    pop % The array exists. Discard the unused location.
+  } {
+    /assertions_arr 100 array def % Create an array.
+    /assertions 0 def % Create an assertions counter.
+    /failures 0 def % Create a failure counter.
+    /failure_messages 100 array def % Create a failure counter.
+  } ifelse
+} def
+
+% Assert that the given procedure is true.
+%
+% proc str -- -
+/assert {
+  setup_tests
+  exch                % -- str proc
+  2 array astore      % -- [str proc]
+  assertions_arr exch % -- array [str proc]
+  assertions exch     % -- array index [str proc]
+  put
+  /assertions assertions 1 add def % assertions++
+} def
+
+% Assert the procedure and following element to be true.
+%
+/assert_equal {
+  setup_tests
+  /expected exch def
+  /actual   exch def
+
+  /test_case {actual expected eq} def
+  test_case
+
+  (expected: )
+  expected to_str append_str
+  ( actual: )     append_str
+  actual to_str   append_str
+  assert
+} def
+
+% Runs all the tests.
+%
+% - -- bool
+%
+% Side Effects:
+%   Sets font.
+%   Changes cursor position.
+%   Increments failures if necessary.
+%   And prints on the page if there is a failure.
+%
+% Returns a boolean of whether all the tests passed.
+/all_tests_passed? {
+  setup_tests
+
+  0 1 assertions 1 sub {
+    assertions_arr exch get
+    aload pop  % Push test array elements back onto stack.
+    exec not { % Do, if the test is not true.
+      dup length 0 eq {
+        pop
+        (No message given.)
+      } if
+      failure_messages exch failures exch
+      put
+      /failures failures 1 add def
+    } {
+      pop % Discard the unused message.
+    } ifelse
+  } for
+  failures 0 eq % See if the failures were every incremented
+} def
+
+/display_errors {
+  /test_fontsize 20 def
+  /Courier findfont test_fontsize scalefont setfont
+  0 11 72 mul 32 sub moveto
+
+  0 1 failures 1 sub {
+    test_fontsize movedown
+    32 movexto
+    failure_messages exch get show
+  } for
+  showpage
+} def
+%%%%%%%%%%%%%%%%%
+%%% TESTING   %%%
+%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%
+%%% POCKETMOD %%%
+%%%%%%%%%%%%%%%%%
 /src_filename (%os%names.txt) def
 /src_file src_filename (r) file def
 /dump_len 100 def
@@ -11,27 +135,34 @@
   src_file dump_str readline
   /ifsuccess exch def
   /read_line exch def
-  ifsuccess
-  {
+
+  read_line length 0 gt {
     entries cur_index read_line put
     /cur_index cur_index 1 add def
     /dump_str dump_len string def
-  }
-  {
+  } if
+
+  ifsuccess not {
     exit
-  } ifelse
+  } if
 } loop
 
-/cur_index cur_index 1 sub def
 src_file closefile
 
 %% Get and save the index number of the last entry.
-/last_entry cur_index def
+%% The first index is 0.
+/last_entry_index cur_index 1 sub def
 
 %% Set how many entries to put on each of the pages.
 %% Because of rounding the last page may have fewer entries.
 /pages 7 def
-/entries_per_box last_entry pages div ceiling def
+/entries_per_box last_entry_index 1 add pages div ceiling def
+%last_entry_index 203 lt {
+%  {entries_per_box} 29 assert_equal
+%} if
+%test_line_count 203 gt {
+%  {entries_per_box} 30 assert_equal
+%} if
 
 %% Convert inches to pixels.
 %%
@@ -66,19 +197,43 @@ src_file closefile
 %% Returns the pixel adjustment.
 /downto {spacing mul neg} def
 
+%% Return the line number for the given entry.
+%%
+%% Takes the entry's index number starting at 0.
+%%
+%% Returns the line number for the entry starting at 1.
+/mod_box_line {
+  cvi entries_per_box cvi mod 1 add
+} def
+%test_line_count 204 lt {
+%  { 0 mod_box_line}  1 assert_equal
+%  {28 mod_box_line} 29 assert_equal
+%  {29 mod_box_line}  1 assert_equal
+%  {35 mod_box_line}  7 assert_equal
+%} if
+
 %% Return the modbox to which this entry belongs.
 %%
 %% Takes the entry's index number.
 %%
 %% Returns the number of the modbox (1-8).
-/mod_box_number {entries_per_box div floor 1 add} def
+/mod_box_number {
+%  /tmp_index exch def
+%  tmp_index entries_per_box div floor 1 add cvi
+  entries_per_box div floor 1 add cvi
 
-%% Return the line number for the given entry.
-%%
-%% Takes the entry's index number.
-%%
-%% Returns the line number for the entry.
-/mod_box_line {cvi entries_per_box cvi mod 1 add} def
+%  tmp_index mod_box_line entries_per_box eq {
+%    1 sub
+%  } if
+} def
+%test_line_count 204 lt {
+%  {  0 mod_box_number} 1 assert_equal
+%  { 28 mod_box_number} 1 assert_equal
+%  { 29 mod_box_number} 2 assert_equal
+%  { 30 mod_box_number} 2 assert_equal
+%  { 35 mod_box_number} 2 assert_equal
+%  {199 mod_box_number} 7 assert_equal
+%} if
 
 /Courier findfont
 fontsize scalefont
@@ -128,11 +283,17 @@ setfont
   } if
 } def
 
-%% Send each index and its string to be displayed.
-0 1 last_entry {
-  1 copy
-  entries exch get
-  display
-} for
+%{entries 0 get} (001A XXXXXXXX, XXXXX) assert_equal
+%{entries 202 get} (203B XXXXXXX, XXXXX) assert_equal
 
-showpage
+all_tests_passed? {
+  %% Send each index and its string to be displayed.
+  0 1 last_entry_index {
+    1 copy
+    entries exch get
+    display
+  } for
+  showpage
+} {
+  display_errors
+} ifelse

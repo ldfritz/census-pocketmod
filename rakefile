@@ -1,0 +1,17 @@
+require "rake/clean"
+
+CODE_FILE = "pocketmod.ps"
+DEST_FILE = "out.pdf"
+NAME_FILE = "names.txt"
+
+file DEST_FILE => [NAME_FILE, CODE_FILE] do
+  system "gs -q -sPAPERSIZE=letter -sDEVICE=pdfwrite -o #{DEST_FILE} #{CODE_FILE}"
+end
+
+task :view => DEST_FILE do
+  system "evince #{DEST_FILE}"
+end
+
+task :default => DEST_FILE
+
+CLEAN << FileList[DEST_FILE]
