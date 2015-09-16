@@ -14,4 +14,4 @@ end
 
 task :default => DEST_FILE
 
-CLEAN << FileList[DEST_FILE]
+CLOBBER.include("*.pdf")
